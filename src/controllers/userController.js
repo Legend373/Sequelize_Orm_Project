@@ -1,14 +1,76 @@
 import db from "../models/index.js";
+import JWTService from "../utils/jwt.js";
 
 const { User, Address, Cart, Order } = db;
 
 // Create a new user
 export const createUser = async (req, res) => {
     try {
-        const user = await User.create(req.body);
-        res.status(201).json(user);
+        const { first_name, last_name, phone_number, email, password } = req.body;
+
+        // Check if user already exists
+        const existingUser = await User.findOne({ where: { email } });
+        if (existingUser)
+            return res.status(409).json({ error: "Email already registered" });
+
+        // Create user
+        const user = await User.create({ first_name, last_name, phone_number, email, password });
+
+        // Get user data without password
+        const { password: _, ...userData } = user.get({ plain: true });
+
+        // Generate tokens separately
+        const accessToken = JWTService.generateToken({ id: user.id, role: "user" }, "access");
+        const refreshToken = JWTService.generateToken({ id: user.id, role: "user" }, "refresh");
+
+        return res.status(201).json({ user: userData, tokens: { accessToken, refreshToken } });
     } catch (err) {
-        res.status(400).json({ error: err.message });
+        console.error("Error creating user:", err);
+        return res.status(400).json({ error: err.message });
+    }
+};
+
+// Login user
+export const loginUser = async (req, res) => {
+    try {
+        const { email, password } = req.body;
+
+        const user = await User.findOne({ where: { email } });
+        if (!user) return res.status(401).json({ error: "Invalid email or password" });
+
+        const isValid = await user.validatePassword(password);
+        if (!isValid) return res.status(401).json({ error: "Invalid email or password" });
+
+        // Get user data without password
+        const { password: _, ...userData } = user.get({ plain: true });
+
+        // Generate tokens separately
+        const accessToken = JWTService.generateToken({ id: user.id, role: "user" }, "access");
+        const refreshToken = JWTService.generateToken({ id: user.id, role: "user" }, "refresh");
+
+        return res.status(200).json({ user: userData, tokens: { accessToken, refreshToken } });
+    } catch (err) {
+        console.error("Error logging in:", err);
+        return res.status(500).json({ error: err.message });
+    }
+};
+// Refresh access & refresh tokens
+export const refreshToken = async (req, res) => {
+    try {
+        // Assuming the client sends refresh token in header: Authorization: Bearer <token>
+        const authHeader = req.headers["authorization"] || req.headers["x-refresh-token"];
+        if (!authHeader) return res.status(401).json({ error: "Refresh token required" });
+
+        const token = authHeader.startsWith("Bearer ") ? authHeader.split(" ")[1] : authHeader;
+
+        // Use JWTService to refresh tokens
+        const newTokens = JWTService.refreshTokens(token);
+        if (!newTokens) return res.status(401).json({ error: "Invalid or expired refresh token" });
+
+        return res.status(200).json(newTokens);
+    } catch (err) {
+        console.error("Error refreshing tokens:", err);
+        return res.status(500).json({ error: "Internal server error" });
     }
 };
 
