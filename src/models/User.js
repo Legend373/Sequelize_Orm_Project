@@ -50,6 +50,7 @@ export default (sequelize, DataTypes) => {
                 type: DataTypes.ENUM("user", "admin"), // predefined roles
                 allowNull: false,
                 defaultValue: "user",
+
             },
         },
         {

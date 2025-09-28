@@ -33,13 +33,13 @@ export const requireAuth = (req, res, next) => {
  * Middleware to restrict access based on roles
  * @param {Array<string>} roles - List of allowed roles
  */
-export const requireRole = (roles = []) => {
+export const requireRole = (role) => {
     return (req, res, next) => {
         if (!req.user) {
             return res.status(401).json({ error: "Authentication required" });
         }
 
-        if (!roles.includes(req.user.role)) {
+        if (!role.includes(req.user.role)) {
             return res.status(403).json({ error: "Forbidden: insufficient permissions" });
         }
 

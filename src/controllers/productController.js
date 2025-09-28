@@ -4,13 +4,31 @@ const { Product, ProductImage, Category } = db;
 
 // Create a product
 export const createProduct = async (req, res) => {
+    const t = await db.sequelize.transaction();
     try {
-        const product = await Product.create(req.body);
-        res.status(201).json(product);
+        const { name, description, price, quantity, category_id, images } = req.body;
+
+        const product = await Product.create(
+            { name, description, price, quantity, category_id },
+            { transaction: t }
+        );
+
+        if (images && images.length > 0) {
+            const productImages = images.map((url) => ({
+                product_id: product.id,
+                url,
+            }));
+            await ProductImage.bulkCreate(productImages, { transaction: t });
+        }
+
+        await t.commit(); // ✅ both product + images saved
+        res.status(201).json({ product });
     } catch (err) {
+        await t.rollback(); // ❌ nothing saved if error happens
         res.status(400).json({ error: err.message });
     }
 };
+
 
 // Get all products
 export const getAllProducts = async (req, res) => {
